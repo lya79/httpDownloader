@@ -115,6 +115,7 @@ func mergeFile(rfilename string, wfile *os.File) error {
 ```
 
 Result
+
 ![image](https://github.com/lya79/httpDownloader/blob/master/ZlCp4Dl.jpg)
 
 ## Copyright and license
