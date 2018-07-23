@@ -1,3 +1,4 @@
+
 # httpDownloader
 適合下載較大的 http資源
 
@@ -112,6 +113,9 @@ func mergeFile(rfilename string, wfile *os.File) error {
 	return nil
 }
 ```
+
+Result
+![image](https://github.com/lya79/httpDownloader/blob/master/ZlCp4Dl.jpg)
 
 ## Copyright and license
 - [The Unlicense](https://github.com/lya79/httpDownloader/blob/master/LICENSE)
