@@ -2,10 +2,14 @@ package httpDownloader
 
 import (
 	"errors"
+	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -16,23 +20,24 @@ type Downloader struct {
 	runningMutex           sync.RWMutex
 	progressListener       ProgressListener
 	progressListenerMutext sync.Mutex
-	countOfCompleted       *int32 //計數目前下載完成幾個封包 atomic
+	countOfCompleted       *int32 //計數目前下載完成幾個封包
 	countOfGorouint        int    //計數目前運作中的 Goroutine有幾個
 	countOfGorouintMutex   sync.Mutex
 	countOfGorouintCond    *sync.Cond
 }
 
 type Packet struct {
-	Index      int
-	RangeStart int    // 起始位置
-	RangeEnd   int    // 終點位置
-	Data       []byte // 封包內容
+	Index       int
+	RangeStart  int // 起始位置
+	RangeEnd    int // 終點位置
+	LenOfPacket int
+	TmpFilename string
 }
 
 type ProgressListener interface {
 	Successed()
 	Failed()
-	Update(fileSize int, packet Packet) //每下載完成一個packet就會執行此方法
+	Update(fileSize int, packet Packet) 
 }
 
 func (this *Downloader) setProgressListener(progressListener ProgressListener) bool {
@@ -93,6 +98,18 @@ func (this *Downloader) Start(target Target) bool {
 	return true
 }
 
+func (this *Downloader) getRandomString(len int) string {
+	if len < 1 {
+		len = 1
+	}
+	bytes := make([]byte, len)
+	for i := 0; i < len; i++ {
+		bytes[i] = byte(65 + rand.Intn(25)) //A=65 and Z = 65+25
+	}
+	return string(bytes)
+
+}
+
 func (this *Downloader) exec() {
 	fileSize, err := this.getFileSize()
 	if err != nil {
@@ -115,6 +132,8 @@ func (this *Downloader) exec() {
 		return
 	}
 
+	prefix := this.getRandomString(5) 
+
 	for index := 0; index < numOfPacket; index++ {
 		var lenOfPacket int
 		if index == numOfPacket-1 {
@@ -122,14 +141,12 @@ func (this *Downloader) exec() {
 		} else {
 			lenOfPacket = this.target.GetLengthOfPacket()
 		}
-		go this.sendRequest(fileSize, numOfPacket, index, lenOfPacket)
+		go this.sendRequest(prefix, fileSize, numOfPacket, index, lenOfPacket)
 	}
 }
 
 func (this *Downloader) getFileSize() (int, error) {
 	url := this.target.GetURL()
-	// subStringsSlice := strings.Split(url, "/")
-	// fileName := subStringsSlice[len(subStringsSlice)-1]
 
 	resp, err := http.Head(url)
 	if err != nil {
@@ -171,10 +188,7 @@ func (this *Downloader) getNumOfPacket(fileSize int) (int, int, error) {
 	return numOfPacket, lenOfLastPacket, nil
 }
 
-func (this *Downloader) sendRequest(fileSize, numOfPacket, index, lenOfPacket int) {
-	// log.Println("sendRequest:", fileSize, numOfPacket, index, lenOfPacket)
-	// defer log.Println("end sendRequest:", index)
-
+func (this *Downloader) sendRequest(prefix string, fileSize, numOfPacket, index, lenOfPacket int) {
 	this.countOfGorouintMutex.Lock()
 	for {
 		if this.countOfGorouint >= this.target.GetNumOfGoroutine() {
@@ -186,8 +200,6 @@ func (this *Downloader) sendRequest(fileSize, numOfPacket, index, lenOfPacket in
 	this.countOfGorouint++
 	this.countOfGorouintCond.Broadcast()
 	this.countOfGorouintMutex.Unlock()
-
-	// log.Println("2 sendRequest:", index)
 
 	rangeStart := this.target.GetLengthOfPacket() * index
 	rangeEnd := rangeStart + lenOfPacket - 1
@@ -219,6 +231,19 @@ func (this *Downloader) sendRequest(fileSize, numOfPacket, index, lenOfPacket in
 	}
 	defer resp.Body.Close()
 
+	url := this.target.GetURL()
+	subStringsSlice := strings.Split(url, "/")
+	fileName := subStringsSlice[len(subStringsSlice)-1]
+	tmpFilename := fileName + "-" + prefix + "-" + strconv.Itoa(index)
+	tmpFilename = strings.Replace(tmpFilename, ".", "", -1)
+
+	out, err := os.Create(tmpFilename)
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		log.Println("fio.Copy, err:", err)
+	}
+
 	data, _ := ioutil.ReadAll(resp.Body)
 
 	this.countOfGorouintMutex.Lock()
@@ -230,7 +255,8 @@ func (this *Downloader) sendRequest(fileSize, numOfPacket, index, lenOfPacket in
 	packet.Index = index
 	packet.RangeStart = rangeStart
 	packet.RangeEnd = rangeEnd
-	packet.Data = data
+	packet.LenOfPacket = len(data)
+	packet.TmpFilename = tmpFilename
 
 	this.progressListenerMutext.Lock()
 	this.progressListener.Update(fileSize, packet)
