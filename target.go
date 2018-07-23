@@ -6,32 +6,32 @@ import (
 
 //Target not synchronized
 type Target struct {
-	URL            string //檔案位置
+	resURL         string //檔案位置
 	numOfGoroutine int    //使用幾個 Goroutine進行下載
 	lengthOfPacket int    //檔案被分割後的美個封包大小
 }
 
 func (this *Target) Clone() *Target {
 	clone := &Target{}
-	clone.URL = this.URL
+	clone.resURL = this.resURL
 	clone.numOfGoroutine = this.numOfGoroutine
 	clone.lengthOfPacket = this.lengthOfPacket
 	return clone
 }
 
-func TargetBuilder(URL string) (*Target, error) {
-	_, err := url.ParseRequestURI(URL)
+func TargetBuilder(resURL string) (*Target, error) {
+	_, err := url.ParseRequestURI(resURL)
 	if err != nil {
 		return nil, err
 	}
 
 	target := &Target{}
-	target.URL = URL
+	target.resURL = resURL
 	return target, nil
 }
 
 func (this *Target) GetURL() string {
-	return this.URL
+	return this.resURL
 }
 
 func (this *Target) SetNumOfGoroutine(numOfGoroutine int) *Target {
