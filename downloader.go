@@ -15,6 +15,7 @@ import (
 )
 
 type Downloader struct {
+	downloadSuccessed      bool
 	target                 *Target
 	running                bool
 	runningMutex           sync.RWMutex
@@ -133,6 +134,8 @@ func (this *Downloader) exec() {
 	}
 
 	prefix := this.getRandomString(5)
+
+	this.downloadSuccessed = false
 
 	for index := 0; index < numOfPacket; index++ {
 		var lenOfPacket int
@@ -268,7 +271,8 @@ func (this *Downloader) sendRequest(prefix string, fileSize, numOfPacket, index,
 	atomic.AddInt32(this.countOfCompleted, 1)
 
 	this.progressListenerMutext.Lock()
-	if atomic.LoadInt32(this.countOfCompleted) == int32(numOfPacket) {
+	if !this.downloadSuccessed && atomic.LoadInt32(this.countOfCompleted) == int32(numOfPacket) {
+		this.downloadSuccessed = true
 		this.progressListener.Successed()
 	}
 	this.progressListenerMutext.Unlock()
