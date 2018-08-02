@@ -37,7 +37,7 @@ type Packet struct {
 type ProgressListener interface {
 	Successed()
 	Failed()
-	Update(fileSize int, packet Packet) 
+	Update(fileSize int, packet Packet)
 }
 
 func (this *Downloader) setProgressListener(progressListener ProgressListener) bool {
@@ -132,7 +132,7 @@ func (this *Downloader) exec() {
 		return
 	}
 
-	prefix := this.getRandomString(5) 
+	prefix := this.getRandomString(5)
 
 	for index := 0; index < numOfPacket; index++ {
 		var lenOfPacket int
@@ -221,6 +221,9 @@ func (this *Downloader) sendRequest(prefix string, fileSize, numOfPacket, index,
 			return
 		}
 		this.runningMutex.RUnlock()
+
+		http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 100
+
 		client := &http.Client{}
 		resp, err = client.Do(req)
 		if err != nil {
